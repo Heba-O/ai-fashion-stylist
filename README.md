@@ -60,3 +60,6 @@ cd ai-fashion-stylist
 # Install requirements (coming soon)
 pip install -r requirements.txt
 
+##colab badge
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Heba-O/ai-fashion-stylist/blob/main/notebooks/model_dev.ipynb)
+
