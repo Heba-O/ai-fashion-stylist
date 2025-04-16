@@ -1,4 +1,4 @@
-# app/app.py ✅ FINAL
+# app/main.py ✅ FINAL
 
 import streamlit as st
 
