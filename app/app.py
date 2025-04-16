@@ -1,30 +1,22 @@
-# app/app.py
+# app/app.py ✅ FINAL
 
 import streamlit as st
-import pandas as pd
-import sys
-import os
 
-# Add parent dir to sys.path before any local imports
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-# Set Streamlit config FIRST before any other Streamlit command
+# MUST be first Streamlit call!
 st.set_page_config(page_title="AI Fashion Stylist 👗", layout="centered")
 
-# Import recommend_outfit here, outside of button logic
+import pandas as pd
 from app.style_helpers import recommend_outfit
 
 st.title("👗 AI Fashion Stylist")
 st.write("Get outfit suggestions based on your fashion vibe!")
 
-# Load dataset
 @st.cache_data
 def load_data():
     return pd.read_csv("https://raw.githubusercontent.com/Heba-O/ai-fashion-stylist/main/data/sample_outfits.csv")
 
 data = load_data()
 
-# User input
 user_input = st.text_area("Describe your style or what you're looking for:")
 
 if st.button("Recommend"):
