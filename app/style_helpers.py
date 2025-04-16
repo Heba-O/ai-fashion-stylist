@@ -1,51 +1,47 @@
 # app/style_helpers.py
 
-from sentence_transformers import SentenceTransformer, util  # Semantic similarity
-import pandas as pd  # Data handling
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import pandas as pd
 
-# === LOAD TRANSFORMER MODEL ===
-# This model turns text into meaningful vector embeddings
-model = SentenceTransformer('all-MiniLM-L6-v2')
-
-def recommend_outfit(user_input, data, season=None, occasion=None, color=None, top_k=3):
+def recommend_outfits(user_input, data, season=None, occasion=None, color=None, top_n=3):
     """
-    Recommend the top_k outfits based on user description and optional filters.
+    Recommend top N outfits based on user input description and optional filters.
 
     Parameters:
-        user_input (str): User's fashion description
-        data (pd.DataFrame): Outfit dataset
-        season, occasion, color (str, optional): Filter options
-        top_k (int): Number of outfits to return
+        user_input (str): Free-text style description from the user.
+        data (pd.DataFrame): Outfit dataset containing style_notes, color, season, etc.
+        season (str): Optional season filter (e.g., 'Autumn').
+        occasion (str): Optional occasion filter (e.g., 'Date').
+        color (str): Optional color filter (e.g., 'Red').
+        top_n (int): Number of outfit suggestions to return (default is 3).
 
     Returns:
-        pd.DataFrame: Top matching outfits
+        List[Dict]: A list of outfit dictionaries matching user input and filters.
     """
-    
-    # Step 1: Encode all outfit style notes
-    style_notes = data['style_notes'].astype(str).tolist()
-    outfit_embeddings = model.encode(style_notes, convert_to_tensor=True)
+    filtered = data.copy()
 
-    # Step 2: Encode user input
-    user_embedding = model.encode(user_input, convert_to_tensor=True)
-
-    # Step 3: Calculate cosine similarity between user input and all outfits
-    similarity_scores = util.cos_sim(user_embedding, outfit_embeddings)[0]
-
-    # Step 4: Pick top 10 semantically similar results
-    top_indices = similarity_scores.argsort(descending=True)[:10]
-    top_matches = data.iloc[top_indices].copy()
-
-    # Step 5: Apply optional filters on top matches
+    # Apply filters if selected
     if season:
-        top_matches = top_matches[top_matches['season'].str.lower() == season.lower()]
+        filtered = filtered[filtered['season'].str.lower() == season.lower()]
     if occasion:
-        top_matches = top_matches[top_matches['occasion'].str.lower() == occasion.lower()]
+        filtered = filtered[filtered['occasion'].str.lower() == occasion.lower()]
     if color:
-        top_matches = top_matches[top_matches['color'].str.lower() == color.lower()]
+        filtered = filtered[filtered['color'].str.lower() == color.lower()]
 
-    # Step 6: Fallback to top similar items if filters remove everything
-    if top_matches.empty:
-        return data.iloc[top_indices[:top_k]]
+    # Fallback to full dataset if no matches
+    if filtered.empty:
+        filtered = data
 
-    # Step 7: Return top-k results
-    return top_matches.head(top_k)
+    # Create TF-IDF matrix using style notes and user input
+    vectorizer = TfidfVectorizer()
+    tfidf_matrix = vectorizer.fit_transform(filtered["style_notes"].astype(str).tolist() + [user_input])
+
+    # Calculate cosine similarity between user input and outfit notes
+    cosine_sim = cosine_similarity(tfidf_matrix[-1], tfidf_matrix[:-1]).flatten()
+
+    # Get indices of top N matches
+    top_indices = cosine_sim.argsort()[::-1][:top_n]
+
+    # Return top matches as a list of dictionaries
+    return filtered.iloc[top_indices].to_dict(orient="records")
