@@ -1,29 +1,32 @@
 # main.py
 
-# Import required libraries
-import streamlit as st
-import pandas as pd
-from app.style_helpers import recommend_outfit  # Import the outfit recommendation logic
+# === IMPORT LIBRARIES ===
+import streamlit as st  # Streamlit for building the UI
+import pandas as pd  # Pandas for handling the CSV dataset
+from app.style_helpers import recommend_outfit  # Custom function to get outfit recommendations
 
-# Set the page config (must be the very first Streamlit command)
+# === STREAMLIT PAGE CONFIG ===
 st.set_page_config(page_title="AI Fashion Stylist 👗", layout="centered")
 
-# App title and description
+# === PAGE TITLE ===
 st.title("👗 AI Fashion Stylist")
 st.write("Get outfit suggestions based on your fashion vibe!")
 
-# Load the outfit dataset from GitHub (cached to avoid reloading on every interaction)
+# === LOAD DATA FUNCTION ===
+# This function loads the CSV dataset only once (thanks to caching)
 @st.cache_data
 def load_data():
-    return pd.read_csv("https://raw.githubusercontent.com/Heba-O/ai-fashion-stylist/main/data/sample_outfits.csv")
+    return pd.read_csv("data/sample_outfits.csv")  # Make sure this path is correct
 
-# Load the data once
+# Load the data
 data = load_data()
 
-# User input for free-text description (e.g., "I want a red outfit for a summer date")
+# === USER INPUT AREA ===
+# Users can describe what they are looking for
 user_input = st.text_area("Describe your style or what you're looking for:")
 
-# Optional filters for more precise recommendations
+# === OPTIONAL FILTERS ===
+# Users can narrow down results using filters (optional)
 season = st.selectbox(
     "Preferred Season (optional):",
     ["", "Spring", "Summer", "Autumn", "Winter", "All"]
@@ -39,33 +42,36 @@ color = st.selectbox(
     ["", "Red", "Black", "White", "Beige", "Blue", "Pink"]
 )
 
-# Button to trigger outfit recommendation
+# === RECOMMEND BUTTON ===
+# When clicked, it triggers the recommendation function
 if st.button("Recommend"):
-    if user_input.strip():  # Make sure the user typed something
-        # Call the recommendation function with filters (if selected)
-        recommended = recommend_outfit(
+    # Check if the user has typed something
+    if user_input.strip():
+        # Call your recommendation function with user input and selected filters
+        recommended_list = recommend_outfit(
             user_input,
             data,
             season=season if season else None,
             occasion=occasion if occasion else None,
-            color=color if color else None
+            color=color if color else None,
+            top_k=3  # Return top 3 recommendations
         )
 
-        # Display the recommended outfit if found
-        if recommended is not None:
-            st.subheader("🎯 Recommended Outfit")
-            st.write(f"**Category (Style):** {recommended['category']}")
-            st.write(f"**Color:** {recommended['color']}")
-            st.write(f"**Season:** {recommended['season']}")
-            st.write(f"**Occasion:** {recommended['occasion']}")
-            st.write(f"**Notes:** {recommended['style_notes']}")
-            img_url = recommended.get('image_url', '')
+        # === DISPLAY RESULTS ===
+        if recommended_list is not None:
+            st.subheader("🎯 Top Outfit Matches")
+            for idx, row in recommended_list.iterrows():
+                st.markdown("---")  # Separator line
+                st.write(f"**Style:** {row['category']}")
+                st.write(f"**Color:** {row['color']}")
+                st.write(f"**Season:** {row['season']}")
+                st.write(f"**Occasion:** {row['occasion']}")
+                st.write(f"**Notes:** {row['style_notes']}")
 
-            if img_url and isinstance(img_url, str) and img_url.startswith("http"):
-                st.image(img_url, caption=recommended['category'])
-            else:
-                st.info("No image available for this outfit.")
+                # Display image if available
+                if isinstance(row.get('image_url'), str) and row['image_url'].startswith("http"):
+                    st.image(row['image_url'], caption=row['category'])
         else:
-            st.error("Sorry, no matching outfits found with the selected filters.")
+            st.error("No matching outfit found. Try different filters or description.")
     else:
         st.warning("Please describe your fashion style!")
