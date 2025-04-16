@@ -11,6 +11,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # Set Streamlit config FIRST before any other Streamlit command
 st.set_page_config(page_title="AI Fashion Stylist 👗", layout="centered")
 
+# Import recommend_outfit here, outside of button logic
+from app.style_helpers import recommend_outfit
+
 st.title("👗 AI Fashion Stylist")
 st.write("Get outfit suggestions based on your fashion vibe!")
 
@@ -25,9 +28,6 @@ data = load_data()
 user_input = st.text_area("Describe your style or what you're looking for:")
 
 if st.button("Recommend"):
-    # Importing recommend_outfit here to ensure no Streamlit code runs before set_page_config()
-    from app.style_helpers import recommend_outfit
-    
     if user_input.strip() != "":
         recommended = recommend_outfit(user_input, data)
 
