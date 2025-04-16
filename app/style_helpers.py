@@ -1,34 +1,58 @@
 # app/style_helpers.py
 
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-import pandas as pd
+# === IMPORT LIBRARIES ===
+from sentence_transformers import SentenceTransformer, util  # For encoding text and measuring similarity
+import pandas as pd  # For handling DataFrame operations
 
-def recommend_outfit(user_input, data, season=None, occasion=None, color=None):
-    # Create a copy of the data to apply filters
+# === LOAD PRETRAINED LANGUAGE MODEL ===
+# This model turns text into vector embeddings for similarity comparison
+# 'all-MiniLM-L6-v2' is lightweight and works well for semantic search
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# === RECOMMENDATION FUNCTION ===
+def recommend_outfit(user_input, data, season=None, occasion=None, color=None, top_k=3):
+    """
+    Recommend the top_k outfits that best match the user's text input and optional filters.
+    
+    Parameters:
+    - user_input: str, natural language input from the user
+    - data: DataFrame, the outfit dataset
+    - season, occasion, color: optional filters to narrow down choices
+    - top_k: number of top recommendations to return
+    
+    Returns:
+    - DataFrame with top matching outfit rows
+    """
+    
+    # Copy the dataset so original data stays unchanged
     filtered = data.copy()
 
-    # Clean up the color column and user input by stripping spaces and lowercasing
-    if color:
-        color = color.strip().lower()
-        filtered = filtered[filtered['color'].str.strip().str.lower() == color]
-
-    # Apply other filters
+    # === APPLY FILTERS (IF ANY) ===
     if season:
         filtered = filtered[filtered['season'].str.lower() == season.lower()]
     if occasion:
         filtered = filtered[filtered['occasion'].str.lower() == occasion.lower()]
+    if color:
+        filtered = filtered[filtered['color'].str.lower() == color.lower()]
 
-    # If filtered result is empty, fallback to full dataset
+    # === IF NO MATCH AFTER FILTERING ===
     if filtered.empty:
-        filtered = data
+        return None
 
-    # Vectorization and similarity scoring
-    vectorizer = TfidfVectorizer()
-    tfidf_matrix = vectorizer.fit_transform(filtered["style_notes"].astype(str).tolist() + [user_input])
-    cosine_sim = cosine_similarity(tfidf_matrix[-1], tfidf_matrix[:-1])
-    
-    # Get the index of the most similar outfit
-    top_index = cosine_sim[0].argsort()[-1]
+    # === ENCODE TEXT TO VECTORS ===
+    # Get the style notes for outfits (as a list of strings)
+    style_notes = filtered['style_notes'].astype(str).tolist()
 
-    return filtered.iloc[top_index]
+    # Convert all outfit descriptions + user input into embeddings (vectors)
+    embeddings = model.encode(style_notes, convert_to_tensor=True)
+    user_embedding = model.encode(user_input, convert_to_tensor=True)
+
+    # === COMPUTE SIMILARITY SCORES ===
+    # Compare the user input with each outfit's style notes
+    cosine_scores = util.cos_sim(user_embedding, embeddings)[0]
+
+    # Get the indices of the top-k most similar outfits
+    top_results = cosine_scores.argsort(descending=True)[:top_k]
+
+    # Return the top matching outfits from the filtered dataset
+    return filtered.iloc[top_results]
