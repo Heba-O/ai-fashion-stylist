@@ -59,7 +59,12 @@ if st.button("Recommend"):
             st.write(f"**Season:** {recommended['season']}")
             st.write(f"**Occasion:** {recommended['occasion']}")
             st.write(f"**Notes:** {recommended['style_notes']}")
-            st.image(recommended['image_url'], caption=recommended['category'])
+            img_url = recommended.get('image_url', '')
+if img_url and isinstance(img_url, str) and img_url.startswith("http"):
+    st.image(img_url, caption=recommended['category'])
+else:
+    st.info("No image available for this outfit.")
+
         else:
             st.error("Sorry, no matching outfits found with the selected filters.")
     else:
