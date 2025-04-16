@@ -24,8 +24,12 @@ if st.button("Recommend"):
     if user_input.strip():
         recommended = recommend_outfit(user_input, data)
 
-        st.subheader("🎯 Recommended Outfit")
-        st.write(f"**Style:** {recommended['style']}")
-        st.write(f"**Notes:** {recommended['style_notes']}")
+st.subheader("🎯 Recommended Outfit")
+st.write(f"**Category (Style):** {recommended['category']}")
+st.write(f"**Color:** {recommended['color']}")
+st.write(f"**Season:** {recommended['season']}")
+st.write(f"**Occasion:** {recommended['occasion']}")
+st.write(f"**Notes:** {recommended['style_notes']}")
+st.image(recommended['image_url'], caption=recommended['category'])
     else:
         st.warning("Please describe your fashion style!")
