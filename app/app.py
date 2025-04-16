@@ -1,15 +1,21 @@
 # app/app.py
 
+import sys
+import os
+
+# Add parent dir to sys.path before any local imports
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import streamlit as st
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 
+# Set Streamlit config FIRST before any other Streamlit command
 st.set_page_config(page_title="AI Fashion Stylist 👗", layout="centered")
 
-# Local imports (moved up just after Streamlit config)
+# Now import local modules
 from app.style_helpers import recommend_outfit
 
+# App UI
 st.title("👗 AI Fashion Stylist")
 st.write("Get outfit suggestions based on your fashion vibe!")
 
