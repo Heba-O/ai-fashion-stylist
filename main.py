@@ -33,6 +33,3 @@ if st.button("Recommend"):
         st.image(recommended['image_url'], caption=recommended['category'])
     else:
         st.warning("Please describe your fashion style!")
-
-
-
