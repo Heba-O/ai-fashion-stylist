@@ -7,6 +7,9 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 st.set_page_config(page_title="AI Fashion Stylist 👗", layout="centered")
 
+# Local imports (moved up just after Streamlit config)
+from app.style_helpers import recommend_outfit
+
 st.title("👗 AI Fashion Stylist")
 st.write("Get outfit suggestions based on your fashion vibe!")
 
@@ -19,8 +22,6 @@ data = load_data()
 
 # User input
 user_input = st.text_area("Describe your style or what you're looking for:")
-
-from app.style_helpers import recommend_outfit
 
 if st.button("Recommend"):
     if user_input.strip() != "":
