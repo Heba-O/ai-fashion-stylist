@@ -8,13 +8,16 @@ def recommend_outfit(user_input, data, season=None, occasion=None, color=None):
     # Create a copy of the data to apply filters
     filtered = data.copy()
 
-    # Apply filters one by one
+    # Clean up the color column and user input by stripping spaces and lowercasing
+    if color:
+        color = color.strip().lower()
+        filtered = filtered[filtered['color'].str.strip().str.lower() == color]
+
+    # Apply other filters
     if season:
         filtered = filtered[filtered['season'].str.lower() == season.lower()]
     if occasion:
         filtered = filtered[filtered['occasion'].str.lower() == occasion.lower()]
-    if color:
-        filtered = filtered[filtered['color'].str.lower() == color.lower()]
 
     # If filtered result is empty, fallback to full dataset
     if filtered.empty:
