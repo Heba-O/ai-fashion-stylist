@@ -21,27 +21,31 @@ def recommend_outfits(user_input, data, season=None, occasion=None, color=None, 
     """
     filtered = data.copy()
 
-    # Apply filters if selected
+    # Apply soft filters
     if season:
         filtered = filtered[filtered['season'].str.lower() == season.lower()]
     if occasion:
         filtered = filtered[filtered['occasion'].str.lower() == occasion.lower()]
-    if color:
-        filtered = filtered[filtered['color'].str.lower() == color.lower()]
 
-    # Fallback to full dataset if no matches
+    # Fallback to full dataset if too filtered
     if filtered.empty:
         filtered = data
 
-    # Create TF-IDF matrix using style notes and user input
+    # Vectorization
     vectorizer = TfidfVectorizer()
     tfidf_matrix = vectorizer.fit_transform(filtered["style_notes"].astype(str).tolist() + [user_input])
 
-    # Calculate cosine similarity between user input and outfit notes
+    # Similarity scoring
     cosine_sim = cosine_similarity(tfidf_matrix[-1], tfidf_matrix[:-1]).flatten()
+    top_indices = cosine_sim.argsort()[::-1][:top_n * 2]  # Get more than needed to filter later
 
-    # Get indices of top N matches
-    top_indices = cosine_sim.argsort()[::-1][:top_n]
+    top_matches = filtered.iloc[top_indices]
 
-    # Return top matches as a list of dictionaries
-    return filtered.iloc[top_indices].to_dict(orient="records")
+    # Enforce color preference after top-N similarity
+    if color:
+        top_matches_filtered = top_matches[top_matches['color'].str.lower() == color.lower()]
+        if not top_matches_filtered.empty:
+            top_matches = top_matches_filtered
+
+    # Limit to top N results
+    return top_matches.head(top_n).to_dict(orient="records")
