@@ -20,13 +20,11 @@ data = load_data()
 # User input
 user_input = st.text_area("Describe your style or what you're looking for:")
 
+from app.style_helpers import recommend_outfit
+
 if st.button("Recommend"):
     if user_input.strip() != "":
-        vectorizer = TfidfVectorizer()
-        tfidf_matrix = vectorizer.fit_transform(data["style_notes"].astype(str).tolist() + [user_input])
-        cosine_sim = cosine_similarity(tfidf_matrix[-1], tfidf_matrix[:-1])
-        top_index = cosine_sim[0].argsort()[-1]
-        recommended = data.iloc[top_index]
+        recommended = recommend_outfit(user_input, data)
 
         st.subheader("🎯 Recommended Outfit")
         st.write(f"**Style:** {recommended['style']}")
