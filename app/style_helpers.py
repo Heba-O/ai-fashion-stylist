@@ -1,58 +1,51 @@
 # app/style_helpers.py
 
-# === IMPORT LIBRARIES ===
-from sentence_transformers import SentenceTransformer, util  # For encoding text and measuring similarity
-import pandas as pd  # For handling DataFrame operations
+from sentence_transformers import SentenceTransformer, util  # Semantic similarity
+import pandas as pd  # Data handling
 
-# === LOAD PRETRAINED LANGUAGE MODEL ===
-# This model turns text into vector embeddings for similarity comparison
-# 'all-MiniLM-L6-v2' is lightweight and works well for semantic search
+# === LOAD TRANSFORMER MODEL ===
+# This model turns text into meaningful vector embeddings
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
-# === RECOMMENDATION FUNCTION ===
 def recommend_outfit(user_input, data, season=None, occasion=None, color=None, top_k=3):
     """
-    Recommend the top_k outfits that best match the user's text input and optional filters.
-    
+    Recommend the top_k outfits based on user description and optional filters.
+
     Parameters:
-    - user_input: str, natural language input from the user
-    - data: DataFrame, the outfit dataset
-    - season, occasion, color: optional filters to narrow down choices
-    - top_k: number of top recommendations to return
-    
+        user_input (str): User's fashion description
+        data (pd.DataFrame): Outfit dataset
+        season, occasion, color (str, optional): Filter options
+        top_k (int): Number of outfits to return
+
     Returns:
-    - DataFrame with top matching outfit rows
+        pd.DataFrame: Top matching outfits
     """
     
-    # Copy the dataset so original data stays unchanged
-    filtered = data.copy()
+    # Step 1: Encode all outfit style notes
+    style_notes = data['style_notes'].astype(str).tolist()
+    outfit_embeddings = model.encode(style_notes, convert_to_tensor=True)
 
-    # === APPLY FILTERS (IF ANY) ===
-    if season:
-        filtered = filtered[filtered['season'].str.lower() == season.lower()]
-    if occasion:
-        filtered = filtered[filtered['occasion'].str.lower() == occasion.lower()]
-    if color:
-        filtered = filtered[filtered['color'].str.lower() == color.lower()]
-
-    # === IF NO MATCH AFTER FILTERING ===
-    if filtered.empty:
-        return None
-
-    # === ENCODE TEXT TO VECTORS ===
-    # Get the style notes for outfits (as a list of strings)
-    style_notes = filtered['style_notes'].astype(str).tolist()
-
-    # Convert all outfit descriptions + user input into embeddings (vectors)
-    embeddings = model.encode(style_notes, convert_to_tensor=True)
+    # Step 2: Encode user input
     user_embedding = model.encode(user_input, convert_to_tensor=True)
 
-    # === COMPUTE SIMILARITY SCORES ===
-    # Compare the user input with each outfit's style notes
-    cosine_scores = util.cos_sim(user_embedding, embeddings)[0]
+    # Step 3: Calculate cosine similarity between user input and all outfits
+    similarity_scores = util.cos_sim(user_embedding, outfit_embeddings)[0]
 
-    # Get the indices of the top-k most similar outfits
-    top_results = cosine_scores.argsort(descending=True)[:top_k]
+    # Step 4: Pick top 10 semantically similar results
+    top_indices = similarity_scores.argsort(descending=True)[:10]
+    top_matches = data.iloc[top_indices].copy()
 
-    # Return the top matching outfits from the filtered dataset
-    return filtered.iloc[top_results]
+    # Step 5: Apply optional filters on top matches
+    if season:
+        top_matches = top_matches[top_matches['season'].str.lower() == season.lower()]
+    if occasion:
+        top_matches = top_matches[top_matches['occasion'].str.lower() == occasion.lower()]
+    if color:
+        top_matches = top_matches[top_matches['color'].str.lower() == color.lower()]
+
+    # Step 6: Fallback to top similar items if filters remove everything
+    if top_matches.empty:
+        return data.iloc[top_indices[:top_k]]
+
+    # Step 7: Return top-k results
+    return top_matches.head(top_k)
