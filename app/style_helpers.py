@@ -5,21 +5,24 @@ from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
 
 def recommend_outfit(user_input, data, season=None, occasion=None, color=None):
-    # Optional filters
+    filtered = data.copy()
+
+    # Apply filters one by one
     if season:
-        data = data[data['season'].str.lower() == season.lower()]
+        filtered = filtered[filtered['season'].str.lower() == season.lower()]
     if occasion:
-        data = data[data['occasion'].str.lower() == occasion.lower()]
+        filtered = filtered[filtered['occasion'].str.lower() == occasion.lower()]
     if color:
-        data = data[data['color'].str.lower() == color.lower()]
+        filtered = filtered[filtered['color'].str.lower() == color.lower()]
 
-    if data.empty:
-        return None
+    # If filtered result is empty, fallback to full dataset
+    if filtered.empty:
+        filtered = data
 
-    # Vectorization and similarity matching
+    # Vectorization and similarity scoring
     vectorizer = TfidfVectorizer()
-    tfidf_matrix = vectorizer.fit_transform(data["style_notes"].astype(str).tolist() + [user_input])
+    tfidf_matrix = vectorizer.fit_transform(filtered["style_notes"].astype(str).tolist() + [user_input])
     cosine_sim = cosine_similarity(tfidf_matrix[-1], tfidf_matrix[:-1])
     top_index = cosine_sim[0].argsort()[-1]
 
-    return data.iloc[top_index]
+    return filtered.iloc[top_index]
