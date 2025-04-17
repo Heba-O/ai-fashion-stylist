@@ -78,3 +78,4 @@ if st.button("Recommend"):
                 safe_display_image(img_url, rec['category'])
         else:
             st.error("No matching outfits found. Try adjusting your description or filters.")
+
