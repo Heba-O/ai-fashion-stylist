@@ -14,7 +14,10 @@ def filter_by_fuzzy_match(filtered, column, value, threshold=80):
     if not value:  # Skip filtering if the value is None or empty
         return filtered
     
-    choices = filtered[column].unique()
+    choices = filtered[column].dropna().unique()  # Ensure we don't pass NaN values to fuzzy match
+    if len(choices) == 0:
+        return filtered
+    
     best_match, score = process.extractOne(value.lower(), choices)
     
     # If score is below the threshold, log a warning but still apply the match.
