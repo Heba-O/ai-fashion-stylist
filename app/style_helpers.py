@@ -1,70 +1,46 @@
-from sentence_transformers import SentenceTransformer, util
-from fuzzywuzzy import fuzz, process
 import pandas as pd
+from sentence_transformers import SentenceTransformer, util
+from fuzzywuzzy import process
 
-# Load model once
-model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
+# Load the model globally
+model = SentenceTransformer("all-MiniLM-L6-v2")
 
-def color_match(row_color, user_color):
-    """ Returns True if the color matches above a threshold using fuzzy matching. """
-    return fuzz.partial_ratio(row_color.lower(), user_color.lower()) > 80
-
-def filter_by_fuzzy_match(filtered, column, value, threshold=80):
-    """ Fuzzy match function for season and occasion with an optional threshold. """
-    if not value:  # Skip filtering if the value is None or empty
-        return filtered
-    
-    choices = filtered[column].dropna().unique()  # Ensure we don't pass NaN values to fuzzy match
-    if len(choices) == 0:
-        return filtered
-    
-    best_match, score = process.extractOne(value.lower(), choices)
-    
-    # If score is below the threshold, log a warning but still apply the match.
-    if score < threshold:
-        print(f"Warning: Fuzzy match for '{value}' on '{column}' did not meet threshold (score: {score})")
-    
-    if score > 70:  # Use 70% as a minimum for fuzzy match quality
-        filtered = filtered[filtered[column].str.lower() == best_match]
-    return filtered
+def flexible_filter_match(row_value, user_value, threshold=80):
+    """
+    Apply fuzzy matching to a field value and user preference.
+    """
+    if not user_value:
+        return True  # If user did not select a filter, allow all values
+    if pd.isna(row_value):
+        return False
+    best_match = process.extractOne(user_value.lower(), [row_value.lower()])
+    if best_match:
+        _, score = best_match
+        return score >= threshold
+    return False
 
 def recommend_outfit(user_input, data, season=None, occasion=None, color=None, top_n=3):
     """
-    Recommend top N outfits using SentenceTransformer embeddings and optional filters.
+    Recommend top N outfits using filter + semantic similarity.
     """
     filtered = data.copy()
 
-    # Apply fuzzy matching for season and occasion if the filters are not None or empty
+    # Apply flexible fuzzy filters
     if season:
-        filtered = filter_by_fuzzy_match(filtered, 'season', season)
+        filtered = filtered[filtered['season'].apply(lambda x: flexible_filter_match(x, season))]
     if occasion:
-        filtered = filter_by_fuzzy_match(filtered, 'occasion', occasion)
-    
-    if filtered.empty:
-        filtered = data  # fallback to full dataset
-
-    # Adjust the importance of filters (season, occasion, color)
-    # Prioritize by combining the filters with description matching.
-    descriptions = filtered['style_notes'].astype(str).tolist()
-    embeddings = model.encode(descriptions + [user_input], convert_to_tensor=True)
-    similarities = util.pytorch_cos_sim(embeddings[-1], embeddings[:-1])[0]
-    top_indices = similarities.argsort(descending=True)[:top_n * 2]  # top N candidates
-    top_matches = filtered.iloc[top_indices]
-
-    # Apply color matching if the color is specified
+        filtered = filtered[filtered['occasion'].apply(lambda x: flexible_filter_match(x, occasion))]
     if color:
-        top_matches_filtered = top_matches[top_matches['color'].apply(lambda c: color_match(c, color))]
-        if not top_matches_filtered.empty:
-            top_matches = top_matches_filtered
+        filtered = filtered[filtered['color'].apply(lambda x: flexible_filter_match(x, color))]
 
-    # Reapply season and occasion filters based on refined results
-    if season:
-        top_matches = filter_by_fuzzy_match(top_matches, 'season', season)
-    if occasion:
-        top_matches = filter_by_fuzzy_match(top_matches, 'occasion', occasion)
+    # If using free-text input, apply semantic similarity
+    if user_input.strip():
+        descriptions = filtered['style_notes'].tolist()
+        if not descriptions:
+            return []
+        embeddings = model.encode(descriptions + [user_input], convert_to_tensor=True)
+        similarities = util.pytorch_cos_sim(embeddings[-1], embeddings[:-1])[0]
+        top_indices = similarities.argsort(descending=True)[:top_n * 2]
+        filtered = filtered.iloc[top_indices]
 
-    if top_matches.empty:
-        print(f"No matches found for the input: {user_input}. Showing fallback results.")
-        return data.head(top_n).to_dict(orient="records")  # Return the top N from the full dataset as fallback
-
-    return top_matches.head(top_n).to_dict(orient="records")
+    return filtered.head(top_n).to_dict(orient="records")
