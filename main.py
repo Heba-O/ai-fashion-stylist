@@ -61,7 +61,7 @@ if st.button("Recommend"):
             st.subheader("🎯 Top Outfit Recommendations")
             for i, rec in enumerate(recommendations):
                 st.markdown(f"### 🔹 Outfit {i + 1}")
-                st.write(f"**Style:** {rec.get('category', 'N/A')}")
+                st.write(f"**category:** {rec.get('category', 'N/A')}")
                 st.write(f"**Color:** {rec.get('color', 'N/A')}")
                 st.write(f"**Season:** {rec.get('season', 'N/A')}")
                 st.write(f"**Occasion:** {rec.get('occasion', 'N/A')}")
