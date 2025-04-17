@@ -43,21 +43,25 @@ def recommend_outfit(user_input, data, season=None, occasion=None, color=None, t
     if filtered.empty:
         filtered = data  # fallback to full dataset
 
-    # Similarity-based ranking using text description
-    if user_input.strip():
-        descriptions = filtered['style_notes'].astype(str).tolist()
-        embeddings = model.encode(descriptions + [user_input], convert_to_tensor=True)
-        similarities = util.pytorch_cos_sim(embeddings[-1], embeddings[:-1])[0]
-        top_indices = similarities.argsort(descending=True)[:top_n * 2]
-        top_matches = filtered.iloc[top_indices]
-    else:
-        top_matches = filtered
+    # Adjust the importance of filters (season, occasion, color)
+    # Prioritize by combining the filters with description matching.
+    descriptions = filtered['style_notes'].astype(str).tolist()
+    embeddings = model.encode(descriptions + [user_input], convert_to_tensor=True)
+    similarities = util.pytorch_cos_sim(embeddings[-1], embeddings[:-1])[0]
+    top_indices = similarities.argsort(descending=True)[:top_n * 2]  # top N candidates
+    top_matches = filtered.iloc[top_indices]
 
-    # Fuzzy color match
+    # Apply color matching if the color is specified
     if color:
         top_matches_filtered = top_matches[top_matches['color'].apply(lambda c: color_match(c, color))]
         if not top_matches_filtered.empty:
             top_matches = top_matches_filtered
+
+    # Reapply season and occasion filters based on refined results
+    if season:
+        top_matches = filter_by_fuzzy_match(top_matches, 'season', season)
+    if occasion:
+        top_matches = filter_by_fuzzy_match(top_matches, 'occasion', occasion)
 
     if top_matches.empty:
         print(f"No matches found for the input: {user_input}. Showing fallback results.")
