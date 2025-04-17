@@ -11,7 +11,7 @@ st.title("👗 AI Fashion Stylist")
 # Load data
 @st.cache_data
 def load_data():
-    url = "https://raw.githubusercontent.com/yourusername/ai-fashion-dataset/main/updated_dataset.csv"
+    url = "https://raw.githubusercontent.com/yourusername/ai-fashion-dataset/main/sample_outfits.csv"
     return pd.read_csv(url)
 
 data = load_data()
