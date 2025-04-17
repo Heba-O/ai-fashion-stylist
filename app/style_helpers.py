@@ -1,47 +1,68 @@
 # style_helpers.py
 import pandas as pd
 from sentence_transformers import SentenceTransformer, util
-from fuzzywuzzy import process
+from fuzzywuzzy import fuzz, process
+import torch
 
+# Load model once
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
-def filter_by_fuzzy_match(df, column, value, threshold=70):
-    if not value:
+def get_semantic_matches(user_input, data, top_n=3):
+    descriptions = data['style_notes'].fillna("").tolist()
+    query_embedding = model.encode(user_input, convert_to_tensor=True)
+    passage_embeddings = model.encode(descriptions, convert_to_tensor=True)
+    scores = util.pytorch_cos_sim(query_embedding, passage_embeddings)[0]
+    top_results = torch.topk(scores, k=top_n)
+    return [(int(idx), float(scores[idx])) for idx in top_results.indices]
+
+def filter_by_fuzzy_match(df, column, value):
+    if not value or df.empty or column not in df.columns:
         return df
-    choices = df[column].dropna().unique()
-    match = process.extractOne(value.lower(), choices)
-    if match and match[1] >= threshold:
-        best_match = match[0]
-        return df[df[column].str.lower() == best_match.lower()]
-    return df  # Fallback: return unfiltered if no good match
 
-def recommend_outfit(df, user_input="", season=None, occasion=None, color=None, top_n=3):
-    # If description is given, use semantic search
+    choices = df[column].dropna().unique().tolist()
+    if not choices:
+        return df
+
+    result = process.extractOne(value.lower(), choices)
+    if result is None:
+        return df
+
+    best_match, score = result
+    if score < 60:
+        return df[0:0]  # Return empty DataFrame
+
+    return df[df[column].str.lower() == best_match.lower()]
+
+def recommend_outfit(user_input=None, season=None, occasion=None, color=None, top_n=3, data=None):
+    if data is None:
+        return []
+
     if user_input:
-        embeddings = model.encode(df['style_notes'].tolist(), convert_to_tensor=True)
-        query_embedding = model.encode(user_input, convert_to_tensor=True)
-        cos_scores = util.pytorch_cos_sim(query_embedding, embeddings)[0]
+        matches = get_semantic_matches(user_input, data, top_n=top_n)
+        for i, (idx, score) in enumerate(matches):
+            outfit = data.iloc[idx]
+            if season and fuzz.partial_ratio(season.lower(), outfit['season'].lower()) > 70:
+                score += 0.1
+            if occasion and fuzz.partial_ratio(occasion.lower(), outfit['occasion'].lower()) > 70:
+                score += 0.1
+            if color and fuzz.partial_ratio(color.lower(), outfit['color'].lower()) > 70:
+                score += 0.1
+            matches[i] = (idx, score)
 
-        df['score'] = cos_scores.cpu().numpy()
+        matches = sorted(matches, key=lambda x: x[1], reverse=True)[:top_n]
+        recommendations = [data.iloc[idx] for idx, _ in matches]
+        return recommendations
 
-        # Boost score for matching filters
-        def boost_score(row):
-            boost = 0
-            if season and season.lower() in str(row['season']).lower():
-                boost += 0.15
-            if occasion and occasion.lower() in str(row['occasion']).lower():
-                boost += 0.15
-            if color and color.lower() in str(row['color']).lower():
-                boost += 0.15
-            return row['score'] + boost
+    else:
+        filtered = data
+        if season:
+            filtered = filter_by_fuzzy_match(filtered, 'season', season)
+        if occasion:
+            filtered = filter_by_fuzzy_match(filtered, 'occasion', occasion)
+        if color:
+            filtered = filter_by_fuzzy_match(filtered, 'color', color)
 
-        df['boosted_score'] = df.apply(boost_score, axis=1)
-        return df.sort_values(by='boosted_score', ascending=False).head(top_n)
+        if len(filtered) == 0:
+            return []
 
-    # If using filters only
-    filtered = df.copy()
-    filtered = filter_by_fuzzy_match(filtered, 'season', season)
-    filtered = filter_by_fuzzy_match(filtered, 'occasion', occasion)
-    filtered = filter_by_fuzzy_match(filtered, 'color', color)
-
-    return filtered.head(top_n)
+        return filtered.sample(n=min(top_n, len(filtered))).to_dict(orient='records')
