@@ -6,16 +6,22 @@ import pandas as pd
 model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
 
 def color_match(row_color, user_color):
+    """ Returns True if the color matches above a threshold using fuzzy matching. """
     return fuzz.partial_ratio(row_color.lower(), user_color.lower()) > 80
 
-def filter_by_fuzzy_match(filtered, column, value):
-    """ Fuzzy match function for season and occasion. """
-    if not value:
-        return filtered  # If no value is provided, don't filter
+def filter_by_fuzzy_match(filtered, column, value, threshold=80):
+    """ Fuzzy match function for season and occasion with an optional threshold. """
+    if not value:  # Skip filtering if the value is None or empty
+        return filtered
     
     choices = filtered[column].unique()
     best_match, score = process.extractOne(value.lower(), choices)
-    if score > 70:  # Threshold for fuzzy match quality
+    
+    # If score is below the threshold, log a warning but still apply the match.
+    if score < threshold:
+        print(f"Warning: Fuzzy match for '{value}' on '{column}' did not meet threshold (score: {score})")
+    
+    if score > 70:  # Use 70% as a minimum for fuzzy match quality
         filtered = filtered[filtered[column].str.lower() == best_match]
     return filtered
 
@@ -25,7 +31,7 @@ def recommend_outfit(user_input, data, season=None, occasion=None, color=None, t
     """
     filtered = data.copy()
 
-    # Apply fuzzy matching for season and occasion
+    # Apply fuzzy matching for season and occasion if the filters are not None or empty
     if season:
         filtered = filter_by_fuzzy_match(filtered, 'season', season)
     if occasion:
@@ -34,7 +40,7 @@ def recommend_outfit(user_input, data, season=None, occasion=None, color=None, t
     if filtered.empty:
         filtered = data  # fallback to full dataset
 
-    # Similarity-based ranking
+    # Similarity-based ranking using text description
     if user_input.strip():
         descriptions = filtered['style_notes'].astype(str).tolist()
         embeddings = model.encode(descriptions + [user_input], convert_to_tensor=True)
@@ -49,5 +55,9 @@ def recommend_outfit(user_input, data, season=None, occasion=None, color=None, t
         top_matches_filtered = top_matches[top_matches['color'].apply(lambda c: color_match(c, color))]
         if not top_matches_filtered.empty:
             top_matches = top_matches_filtered
+
+    if top_matches.empty:
+        print(f"No matches found for the input: {user_input}. Showing fallback results.")
+        return data.head(top_n).to_dict(orient="records")  # Return the top N from the full dataset as fallback
 
     return top_matches.head(top_n).to_dict(orient="records")
