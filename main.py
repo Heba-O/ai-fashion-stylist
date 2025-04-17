@@ -1,5 +1,4 @@
 # main.py
-
 import streamlit as st
 import pandas as pd
 from app.style_helpers import recommend_outfit
@@ -23,29 +22,34 @@ data = load_data()
 
 # Function to safely display images from URLs
 def safe_display_image(img_url, caption):
+    if not img_url:
+        st.warning("⚠️ Image could not be loaded (URL is missing).")
+        return
     try:
         response = requests.get(img_url)
         if response.status_code == 200:
             img = Image.open(BytesIO(response.content))
             st.image(img, caption=caption, use_container_width=True)
         else:
-            st.warning("⚠️ Image could not be loaded.")
-    except Exception as e:
-        st.warning(f"⚠️ Error displaying image: {e}")
+            st.warning("⚠️ Image could not be loaded (URL is broken).")
+    except Exception:
+        st.warning("⚠️ Image could not be loaded (Invalid URL or network issue).")
 
 # Input method selection
 input_method = st.radio("Choose input method:", ["Free-text Description", "Filters Only"])
 
 user_input = ""
+season = occasion = color = None
+
+# Handle input based on method
 if input_method == "Free-text Description":
     user_input = st.text_area("Describe your style or what you're looking for:")
     st.caption("Example: 'Want a cozy red casual outfit for an autumn picnic'")
-
-# Optional filters
-st.markdown("#### Filters (optional):")
-season = st.selectbox("Preferred Season:", ["", "Spring", "Summer", "Autumn", "Winter", "All"])
-occasion = st.selectbox("Occasion:", ["", "Party", "Casual", "Formal", "Business", "Date"])
-color = st.selectbox("Preferred Color:", ["", "Red", "Black", "White", "Beige", "Blue", "Pink"])
+else:
+    st.markdown("#### Filters:")
+    season = st.selectbox("Preferred Season:", ["", "Spring", "Summer", "Autumn", "Winter", "All"])
+    occasion = st.selectbox("Occasion:", ["", "Party", "Casual", "Formal", "Business", "Date"])
+    color = st.selectbox("Preferred Color:", ["", "Red", "Black", "White", "Beige", "Blue", "Pink"])
 
 # Recommend button
 if st.button("Recommend"):
@@ -71,7 +75,6 @@ if st.button("Recommend"):
                 st.write(f"**Occasion:** {rec['occasion']}")
                 st.write(f"**Notes:** {rec['style_notes']}")
                 img_url = rec.get("image_url", "")
-                if img_url:
-                    safe_display_image(img_url, rec['category'])
+                safe_display_image(img_url, rec['category'])
         else:
             st.error("No matching outfits found. Try adjusting your description or filters.")
