@@ -1,5 +1,3 @@
-# app/style_helpers.py
-
 from sentence_transformers import SentenceTransformer, util
 from fuzzywuzzy import fuzz, process
 import pandas as pd
@@ -12,6 +10,9 @@ def color_match(row_color, user_color):
 
 def filter_by_fuzzy_match(filtered, column, value):
     """ Fuzzy match function for season and occasion. """
+    if not value:
+        return filtered  # If no value is provided, don't filter
+    
     choices = filtered[column].unique()
     best_match, score = process.extractOne(value.lower(), choices)
     if score > 70:  # Threshold for fuzzy match quality
