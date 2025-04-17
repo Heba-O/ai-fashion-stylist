@@ -6,21 +6,25 @@ from PIL import Image
 import requests
 from io import BytesIO
 
-# Configure the Streamlit page
+# Streamlit page config
 st.set_page_config(page_title="AI Fashion Stylist 👗", layout="centered")
 
-# Title and description
 st.title("👗 AI Fashion Stylist")
 st.write("Get AI-powered outfit recommendations based on your style or filters!")
 
-# Load dataset
+# Load dataset from GitHub
 @st.cache_data
 def load_data():
     return pd.read_csv("https://raw.githubusercontent.com/Heba-O/ai-fashion-stylist/main/data/sample_outfits.csv")
 
 data = load_data()
 
-# Function to safely display images from URLs
+# Extract dropdown options from dataset (optional dynamic approach)
+seasons = sorted(data['season'].dropna().unique().tolist())
+occasions = sorted(data['occasion'].dropna().unique().tolist())
+colors = sorted(data['color'].dropna().unique().tolist())
+
+# Safe image display
 def safe_display_image(img_url, caption):
     if not img_url:
         st.warning("⚠️ Image could not be loaded (URL is missing).")
@@ -35,23 +39,23 @@ def safe_display_image(img_url, caption):
     except Exception:
         st.warning("⚠️ Image could not be loaded (Invalid URL or network issue).")
 
-# Input method selection
+# Input method toggle
 input_method = st.radio("Choose input method:", ["Free-text Description", "Filters Only"])
 
 user_input = ""
 season = occasion = color = None
 
-# Handle input based on method
+# Only show one mode at a time
 if input_method == "Free-text Description":
     user_input = st.text_area("Describe your style or what you're looking for:")
     st.caption("Example: 'Want a cozy red casual outfit for an autumn picnic'")
 else:
-    st.markdown("#### Filters:")
-    season = st.selectbox("Preferred Season:", ["", "Spring", "Summer", "Autumn", "Winter", "All"])
-    occasion = st.selectbox("Occasion:", ["", "Party", "Casual", "Formal", "Business", "Date"])
-    color = st.selectbox("Preferred Color:", ["", "Red", "Black", "White", "Beige", "Blue", "Pink"])
+    st.markdown("#### Filters (optional):")
+    season = st.selectbox("Preferred Season:", [""] + seasons)
+    occasion = st.selectbox("Occasion:", [""] + occasions)
+    color = st.selectbox("Preferred Color:", [""] + colors)
 
-# Recommend button
+# Recommendation button
 if st.button("Recommend"):
     if input_method == "Free-text Description" and not user_input.strip():
         st.warning("Please describe your fashion style!")
@@ -74,8 +78,6 @@ if st.button("Recommend"):
                 st.write(f"**Season:** {rec['season']}")
                 st.write(f"**Occasion:** {rec['occasion']}")
                 st.write(f"**Notes:** {rec['style_notes']}")
-                img_url = rec.get("image_url", "")
-                safe_display_image(img_url, rec['category'])
+                safe_display_image(rec.get("image_url", ""), rec['category'])
         else:
             st.error("No matching outfits found. Try adjusting your description or filters.")
-
