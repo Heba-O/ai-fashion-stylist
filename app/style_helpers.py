@@ -4,7 +4,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
 
-def recommend_outfits(user_input, data, season=None, occasion=None, color=None, top_n=3):
+def recommend_outfit(user_input, data, season=None, occasion=None, color=None, top_n=3):
     """
     Recommend top N outfits based on user input description and optional filters.
 
