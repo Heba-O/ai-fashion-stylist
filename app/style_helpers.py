@@ -19,33 +19,38 @@ def recommend_outfit(user_input, data, season=None, occasion=None, color=None, t
     Returns:
         List[Dict]: A list of outfit dictionaries matching user input and filters.
     """
+    
+    # Start with a copy of the dataset so we don't change the original
     filtered = data.copy()
 
-    # Apply soft filters
+    # 🧊 Soft filtering - based on season and occasion
     if season:
         filtered = filtered[filtered['season'].str.lower() == season.lower()]
     if occasion:
         filtered = filtered[filtered['occasion'].str.lower() == occasion.lower()]
 
-    # Fallback to full dataset if too filtered
+    # 🧯 If filters result in no matches, fall back to the full dataset
     if filtered.empty:
         filtered = data
 
-    # Vectorization
+    # 🧠 Convert style notes to TF-IDF vectors to measure how similar they are to user input
     vectorizer = TfidfVectorizer()
     tfidf_matrix = vectorizer.fit_transform(filtered["style_notes"].astype(str).tolist() + [user_input])
 
-    # Similarity scoring
+    # 🧮 Compute cosine similarity between the user's input and each outfit's style_notes
     cosine_sim = cosine_similarity(tfidf_matrix[-1], tfidf_matrix[:-1]).flatten()
-    top_indices = cosine_sim.argsort()[::-1][:top_n * 2]  # Get more than needed to filter later
 
+    # 🎯 Get the indices of the top matches (more than top_n so we can filter by color later)
+    top_indices = cosine_sim.argsort()[::-1][:top_n * 2]  # More results to allow filtering later
+
+    # 💥 Select the matching outfits
     top_matches = filtered.iloc[top_indices]
 
-    # Enforce color preference after top-N similarity
+    # 🎨 Apply color filter strictly after top-N selection
     if color:
         top_matches_filtered = top_matches[top_matches['color'].str.lower() == color.lower()]
         if not top_matches_filtered.empty:
             top_matches = top_matches_filtered
 
-    # Limit to top N results
+    # 🚀 Return the top N results as a list of dictionaries
     return top_matches.head(top_n).to_dict(orient="records")
