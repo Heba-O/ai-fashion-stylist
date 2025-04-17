@@ -45,7 +45,7 @@ if st.button("Recommend"):
         recommendations = recommend_outfit(
             user_input,
             data,
-            top_k=num_suggestions,
+            top_n=num_suggestions,
             season=season if season else None,
             occasion=occasion if occasion else None,
             color=color if color else None
