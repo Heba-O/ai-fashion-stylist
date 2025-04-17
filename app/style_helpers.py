@@ -1,46 +1,47 @@
+# style_helpers.py
 import pandas as pd
 from sentence_transformers import SentenceTransformer, util
 from fuzzywuzzy import process
 
-# Load the model globally
-model = SentenceTransformer("all-MiniLM-L6-v2")
+model = SentenceTransformer('all-MiniLM-L6-v2')
 
-def flexible_filter_match(row_value, user_value, threshold=80):
-    """
-    Apply fuzzy matching to a field value and user preference.
-    """
-    if not user_value:
-        return True  # If user did not select a filter, allow all values
-    if pd.isna(row_value):
-        return False
-    best_match = process.extractOne(user_value.lower(), [row_value.lower()])
-    if best_match:
-        _, score = best_match
-        return score >= threshold
-    return False
+def filter_by_fuzzy_match(df, column, value, threshold=70):
+    if not value:
+        return df
+    choices = df[column].dropna().unique()
+    match = process.extractOne(value.lower(), choices)
+    if match and match[1] >= threshold:
+        best_match = match[0]
+        return df[df[column].str.lower() == best_match.lower()]
+    return df  # Fallback: return unfiltered if no good match
 
-def recommend_outfit(user_input, data, season=None, occasion=None, color=None, top_n=3):
-    """
-    Recommend top N outfits using filter + semantic similarity.
-    """
-    filtered = data.copy()
+def recommend_outfit(df, user_input="", season=None, occasion=None, color=None, top_n=3):
+    # If description is given, use semantic search
+    if user_input:
+        embeddings = model.encode(df['style_notes'].tolist(), convert_to_tensor=True)
+        query_embedding = model.encode(user_input, convert_to_tensor=True)
+        cos_scores = util.pytorch_cos_sim(query_embedding, embeddings)[0]
 
-    # Apply flexible fuzzy filters
-    if season:
-        filtered = filtered[filtered['season'].apply(lambda x: flexible_filter_match(x, season))]
-    if occasion:
-        filtered = filtered[filtered['occasion'].apply(lambda x: flexible_filter_match(x, occasion))]
-    if color:
-        filtered = filtered[filtered['color'].apply(lambda x: flexible_filter_match(x, color))]
+        df['score'] = cos_scores.cpu().numpy()
 
-    # If using free-text input, apply semantic similarity
-    if user_input.strip():
-        descriptions = filtered['style_notes'].tolist()
-        if not descriptions:
-            return []
-        embeddings = model.encode(descriptions + [user_input], convert_to_tensor=True)
-        similarities = util.pytorch_cos_sim(embeddings[-1], embeddings[:-1])[0]
-        top_indices = similarities.argsort(descending=True)[:top_n * 2]
-        filtered = filtered.iloc[top_indices]
+        # Boost score for matching filters
+        def boost_score(row):
+            boost = 0
+            if season and season.lower() in str(row['season']).lower():
+                boost += 0.15
+            if occasion and occasion.lower() in str(row['occasion']).lower():
+                boost += 0.15
+            if color and color.lower() in str(row['color']).lower():
+                boost += 0.15
+            return row['score'] + boost
 
-    return filtered.head(top_n).to_dict(orient="records")
+        df['boosted_score'] = df.apply(boost_score, axis=1)
+        return df.sort_values(by='boosted_score', ascending=False).head(top_n)
+
+    # If using filters only
+    filtered = df.copy()
+    filtered = filter_by_fuzzy_match(filtered, 'season', season)
+    filtered = filter_by_fuzzy_match(filtered, 'occasion', occasion)
+    filtered = filter_by_fuzzy_match(filtered, 'color', color)
+
+    return filtered.head(top_n)
