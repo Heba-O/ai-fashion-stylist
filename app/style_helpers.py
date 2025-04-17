@@ -6,7 +6,8 @@ from fuzzywuzzy import fuzz
 import pandas as pd
 
 def color_match(row_color, user_color):
-    return fuzz.partial_ratio(row_color.lower(), user_color.lower()) > 80
+    """Fuzzy color matcher with token sort for better results."""
+    return fuzz.token_sort_ratio(row_color.lower(), user_color.lower()) > 80
 
 def recommend_outfit(user_input, data, season=None, occasion=None, color=None, top_n=3):
     """
@@ -23,30 +24,35 @@ def recommend_outfit(user_input, data, season=None, occasion=None, color=None, t
     Returns:
         List[Dict]: List of recommended outfits.
     """
+    # Initial filtering by season & occasion
     filtered = data.copy()
-
-    # Soft filtering
     if season:
         filtered = filtered[filtered['season'].str.lower() == season.lower()]
     if occasion:
         filtered = filtered[filtered['occasion'].str.lower() == occasion.lower()]
+
+    # If filters return nothing, use full dataset
     if filtered.empty:
         filtered = data
 
-    # Similarity-based ranking (if description is provided)
+    # Similarity-based ranking (if free-text description is used)
     if user_input.strip():
+        style_notes = filtered["style_notes"].fillna("").astype(str).tolist()
         vectorizer = TfidfVectorizer()
-        tfidf_matrix = vectorizer.fit_transform(filtered["style_notes"].astype(str).tolist() + [user_input])
+        tfidf_matrix = vectorizer.fit_transform(style_notes + [user_input])
         cosine_sim = cosine_similarity(tfidf_matrix[-1], tfidf_matrix[:-1]).flatten()
+
+        # Get top matches by similarity score
         top_indices = cosine_sim.argsort()[::-1][:top_n * 2]
         top_matches = filtered.iloc[top_indices]
     else:
         top_matches = filtered
 
-    # Apply fuzzy color match
+    # Apply fuzzy color filter (if given)
     if color:
         top_matches_filtered = top_matches[top_matches['color'].apply(lambda c: color_match(c, color))]
         if not top_matches_filtered.empty:
             top_matches = top_matches_filtered
 
+    # Return top N recommendations
     return top_matches.head(top_n).to_dict(orient="records")
