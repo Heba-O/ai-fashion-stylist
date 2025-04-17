@@ -1,58 +1,44 @@
 # app/style_helpers.py
 
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+from sentence_transformers import SentenceTransformer, util
 from fuzzywuzzy import fuzz
 import pandas as pd
 
+# Load model once
+model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
+
 def color_match(row_color, user_color):
-    """Fuzzy color matcher with token sort for better results."""
-    return fuzz.token_sort_ratio(row_color.lower(), user_color.lower()) > 80
+    return fuzz.partial_ratio(row_color.lower(), user_color.lower()) > 80
 
 def recommend_outfit(user_input, data, season=None, occasion=None, color=None, top_n=3):
     """
-    Recommend top N outfits based on user input and optional filters.
-
-    Parameters:
-        user_input (str): Free-text description (optional).
-        data (pd.DataFrame): Dataset of outfits.
-        season (str): Season filter.
-        occasion (str): Occasion filter.
-        color (str): Color filter.
-        top_n (int): Number of results to return.
-
-    Returns:
-        List[Dict]: List of recommended outfits.
+    Recommend top N outfits using SentenceTransformer embeddings and optional filters.
     """
-    # Initial filtering by season & occasion
     filtered = data.copy()
+
+    # Apply strong filters first
     if season:
         filtered = filtered[filtered['season'].str.lower() == season.lower()]
     if occasion:
         filtered = filtered[filtered['occasion'].str.lower() == occasion.lower()]
-
-    # If filters return nothing, use full dataset
+    
     if filtered.empty:
-        filtered = data
+        filtered = data  # fallback to full dataset
 
-    # Similarity-based ranking (if free-text description is used)
+    # Similarity-based ranking
     if user_input.strip():
-        style_notes = filtered["style_notes"].fillna("").astype(str).tolist()
-        vectorizer = TfidfVectorizer()
-        tfidf_matrix = vectorizer.fit_transform(style_notes + [user_input])
-        cosine_sim = cosine_similarity(tfidf_matrix[-1], tfidf_matrix[:-1]).flatten()
-
-        # Get top matches by similarity score
-        top_indices = cosine_sim.argsort()[::-1][:top_n * 2]
+        descriptions = filtered['style_notes'].astype(str).tolist()
+        embeddings = model.encode(descriptions + [user_input], convert_to_tensor=True)
+        similarities = util.pytorch_cos_sim(embeddings[-1], embeddings[:-1])[0]
+        top_indices = similarities.argsort(descending=True)[:top_n * 2]
         top_matches = filtered.iloc[top_indices]
     else:
         top_matches = filtered
 
-    # Apply fuzzy color filter (if given)
+    # Fuzzy color match
     if color:
         top_matches_filtered = top_matches[top_matches['color'].apply(lambda c: color_match(c, color))]
         if not top_matches_filtered.empty:
             top_matches = top_matches_filtered
 
-    # Return top N recommendations
     return top_matches.head(top_n).to_dict(orient="records")
