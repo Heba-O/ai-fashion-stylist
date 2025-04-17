@@ -1,7 +1,7 @@
 # app/style_helpers.py
 
 from sentence_transformers import SentenceTransformer, util
-from fuzzywuzzy import fuzz
+from fuzzywuzzy import fuzz, process
 import pandas as pd
 
 # Load model once
@@ -10,17 +10,25 @@ model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
 def color_match(row_color, user_color):
     return fuzz.partial_ratio(row_color.lower(), user_color.lower()) > 80
 
+def filter_by_fuzzy_match(filtered, column, value):
+    """ Fuzzy match function for season and occasion. """
+    choices = filtered[column].unique()
+    best_match, score = process.extractOne(value.lower(), choices)
+    if score > 70:  # Threshold for fuzzy match quality
+        filtered = filtered[filtered[column].str.lower() == best_match]
+    return filtered
+
 def recommend_outfit(user_input, data, season=None, occasion=None, color=None, top_n=3):
     """
     Recommend top N outfits using SentenceTransformer embeddings and optional filters.
     """
     filtered = data.copy()
 
-    # Apply strong filters first
+    # Apply fuzzy matching for season and occasion
     if season:
-        filtered = filtered[filtered['season'].str.lower() == season.lower()]
+        filtered = filter_by_fuzzy_match(filtered, 'season', season)
     if occasion:
-        filtered = filtered[filtered['occasion'].str.lower() == occasion.lower()]
+        filtered = filter_by_fuzzy_match(filtered, 'occasion', occasion)
     
     if filtered.empty:
         filtered = data  # fallback to full dataset
